@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartPark Live View</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/gh/phoboslab/jsmpeg/jsmpeg.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: rgba(30, 41, 59, 0.7);
+            --primary: #3b82f6;
+            --primary-hover: #2563eb;
+            --success: #10b981;
+            --success-hover: #059669;
+            --text: #f8fafc;
+            --text-secondary: #94a3b8;
+            --border: rgba(255, 255, 255, 0.08);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text);
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 20px;
+            width: 100%;
+        }
+
+        header h1 {
+            font-size: 24px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #60a5fa, #3b82f6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 4px;
+        }
+
+        header p {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .camera-tabs {
+            display: flex;
+            gap: 8px;
+            width: 100%;
+            max-width: 500px;
+            margin-bottom: 16px;
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 12px;
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            color: var(--text-secondary);
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            backdrop-filter: blur(10px);
+        }
+
+        .tab-btn.active {
+            background: var(--primary);
+            color: var(--text);
+            border-color: var(--primary);
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+
+        .video-container {
+            width: 100%;
+            max-width: 500px;
+            aspect-ratio: 16/9;
+            background: #020617;
+            border-radius: 16px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+            position: relative;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+            margin-bottom: 20px;
+        }
+
+        .video-stream {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: none;
+        }
+
+        .video-stream.active {
+            display: block;
+        }
+
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: rgba(15, 23, 42, 0.9);
+            z-index: 2;
+            transition: opacity 0.5s ease;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 12px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .controls-card {
+            width: 100%;
+            max-width: 500px;
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 16px;
+            backdrop-filter: blur(10px);
+            margin-bottom: 20px;
+        }
+
+        .controls-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 12px;
+        }
+
+        .action-btn {
+            width: 100%;
+            padding: 16px;
+            background: var(--success);
+            border: none;
+            border-radius: 12px;
+            color: var(--text);
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+        }
+
+        .action-btn:hover {
+            background: var(--success-hover);
+            transform: translateY(-2px);
+        }
+
+        .action-btn:active {
+            transform: translateY(0);
+        }
+
+        .status-bar {
+            width: 100%;
+            max-width: 500px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            font-size: 13px;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .dot {
+            width: 8px;
+            height: 8px;
+            background-color: var(--success);
+            border-radius: 50%;
+            box-shadow: 0 0 8px var(--success);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 0.6; }
+            50% { opacity: 1; }
+            100% { opacity: 0.6; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>SmartPark Live</h1>
+        <p>Kameralarni jonli kuzatish va boshqarish</p>
+    </header>
+
+    <div class="camera-tabs">
+        <button class="tab-btn active" onclick="switchCamera(this, 'kirish', '10.70.5.8')">📹 Kirish Kamerasi</button>
+        <button class="tab-btn" onclick="switchCamera(this, 'chiqish', '10.70.5.7')">📹 Chiqish Kamerasi</button>
+    </div>
+
+    <div class="video-container">
+        <div class="loading-overlay" id="loadingOverlay">
+            <div class="spinner"></div>
+            <p id="loadingText">Kameraga ulanilmoqda...</p>
+        </div>
+        <canvas id="videoCanvas" class="video-stream active"></canvas>
+    </div>
+
+    <div class="controls-card">
+        <div class="controls-title" id="controlsTitle">Kirish shlagbaumini boshqarish</div>
+        <button class="action-btn" onclick="openBarrier()">
+            🔓 Shlagbaumni ochish
+        </button>
+    </div>
+
+    <div class="status-bar">
+        <div class="status-indicator">
+            <div class="dot"></div>
+            <span>Tizim online</span>
+        </div>
+        <div style="color: var(--text-secondary);" id="activeCamName">Kirish (10.70.5.8)</div>
+    </div>
+
+    <script>
+        let currentIp = '10.70.5.8';
+        let currentName = 'kirish';
+        let player = null;
+
+        function startLiveStream(name) {
+            const canvas = document.getElementById('videoCanvas');
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const streamUrl = `${wsProtocol}//${window.location.host}/stream/${name}`;
+            
+            console.log("Connecting JSMpeg to:", streamUrl);
+            
+            try {
+                player = new JSMpeg.Player(streamUrl, {
+                    canvas: canvas,
+                    autoplay: true,
+                    audio: false,
+                    loop: true,
+                    onSourceEstablished: () => {
+                        console.log("Stream source established!");
+                    }
+                });
+
+                // Hide loading overlay after short duration once buffer is full
+                setTimeout(hideLoading, 600);
+            } catch (e) {
+                console.error("Failed to start JSMpeg:", e);
+            }
+        }
+
+        function switchCamera(btn, name, ip) {
+            if (currentIp === ip) return;
+            
+            currentIp = ip;
+            currentName = name;
+
+            // Tab button style switch
+            const buttons = document.querySelectorAll('.tab-btn');
+            buttons.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+
+            // Show loading
+            const loader = document.getElementById('loadingOverlay');
+            loader.style.opacity = '1';
+            loader.style.display = 'flex';
+
+            // Destroy previous JSMpeg player to free memory and connection slot
+            if (player) {
+                try {
+                    player.destroy();
+                    player = null;
+                } catch (e) {
+                    console.error("Error destroying player:", e);
+                }
+            }
+
+            // Start new stream
+            startLiveStream(name);
+
+            // Update details
+            document.getElementById('activeCamName').innerText = `${name === 'kirish' ? 'Kirish' : 'Chiqish'} (${ip})`;
+            document.getElementById('controlsTitle').innerText = `${name === 'kirish' ? 'Kirish' : 'Chiqish'} shlagbaumini boshqarish`;
+        }
+
+        function hideLoading() {
+            const loader = document.getElementById('loadingOverlay');
+            loader.style.opacity = '0';
+            setTimeout(() => {
+                loader.style.display = 'none';
+            }, 300);
+        }
+
+        async function openBarrier() {
+            const btn = document.querySelector('.action-btn');
+            const originalText = btn.innerHTML;
+            
+            btn.disabled = true;
+            btn.innerHTML = '⏳ Ochilmoqda...';
+            btn.style.background = '#eab308';
+            btn.style.boxShadow = '0 4px 12px rgba(234, 179, 8, 0.2)';
+
+            try {
+                const response = await fetch('/api/manual-open-camera', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ip: currentIp })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    btn.innerHTML = '✅ Muvaffaqiyatli ochildi!';
+                    btn.style.background = '#10b981';
+                    btn.style.boxShadow = '0 4px 12px rgba(16, 185, 129, 0.2)';
+                } else {
+                    throw new Error('Failed');
+                }
+            } catch(e) {
+                btn.innerHTML = '❌ Xatolik yuz berdi';
+                btn.style.background = '#ef4444';
+                btn.style.boxShadow = '0 4px 12px rgba(239, 68, 68, 0.2)';
+            }
+
+            setTimeout(() => {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+                btn.style.background = 'var(--success)';
+                btn.style.boxShadow = '0 4px 12px rgba(16, 185, 129, 0.2)';
+            }, 3000);
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            startLiveStream('kirish');
+        });
+    </script>
+</body>
+</html>

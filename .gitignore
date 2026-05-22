@@ -1,0 +1,27 @@
+# Dependency directories
+node_modules/
+**/node_modules/
+
+# Local databases and logs
+*.db
+*.db-journal
+*.log
+**/prisma/dev.db
+**/prisma/dev.db-journal
+**/*.log
+
+# Environment variables
+.env
+**/.env
+
+# Production builds
+dist/
+**/dist/
+backend/public/assets/
+backend/public/index.html
+backend/public/favicon.svg
+backend/public/icons.svg
+
+# OS generated files
+.DS_Store
+Thumbs.db
