@@ -25,3 +25,8 @@ backend/public/icons.svg
 # OS generated files
 .DS_Store
 Thumbs.db
+
+# Standalone binary and packages
+node.exe
+*.zip
+
