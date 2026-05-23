@@ -25,8 +25,13 @@ const Dashboard = () => {
     socket.on('car_exit', (data) => {
       loadDashboard();
       if (data.fee > 0) {
-        // Find session
-        setCheckoutSession({ id: data.sessionId, plate: data.plateNumber, fee: data.fee });
+        setCheckoutSession({ 
+          id: data.sessionId, 
+          plate: data.plateNumber, 
+          fee: data.fee,
+          entryTime: data.entryTime,
+          durationMins: data.durationMins
+        });
       }
     });
     socket.on('alert', (data) => setAlerts(prev => [...prev, data.message]));
@@ -205,52 +210,16 @@ const Dashboard = () => {
           </div>
           
           {checkoutSession ? (
-            <div className="flex-1 flex flex-col justify-center">
-              <div className="text-center mb-6">
-                <div className="inline-block p-3 rounded-2xl bg-gray-100 dark:bg-slate-800 border-2 border-dashed border-gray-300 dark:border-slate-600 mb-4">
-                  <h3 className="text-3xl font-black tracking-widest">{checkoutSession.plate}</h3>
-                </div>
-                <p className="text-gray-500 dark:text-gray-400 mb-1">Jami to'lov summasi</p>
-                <p className="text-4xl font-bold text-red-500">{checkoutSession.fee} <span className="text-xl">UZS</span></p>
-              </div>
-
-              {isProcessingTerminal ? (
-                <div className="flex-1 flex flex-col items-center justify-center text-center p-6 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-200 dark:border-blue-800">
-                  <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-                  <h3 className="text-lg font-bold text-blue-800 dark:text-blue-300">Terminalga ulanildi...</h3>
-                  <p className="text-blue-600 dark:text-blue-400 mt-2">Iltimos, mijoz terminalga PIN kod kiritishini kuting.</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 gap-3 mt-auto">
-                  <button onClick={() => handlePayment('CASH')} className="flex items-center justify-between p-4 rounded-xl border border-gray-200 dark:border-slate-700 hover:border-green-500 hover:bg-green-50 dark:hover:bg-green-500/10 transition group">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-green-100 dark:bg-green-500/20 rounded-lg text-green-600 dark:text-green-400 group-hover:scale-110 transition-transform">
-                        <Banknote className="w-5 h-5" />
-                      </div>
-                      <span className="font-semibold text-lg">Naqd pul</span>
-                    </div>
-                  </button>
-                  <button onClick={() => handlePayment('TERMINAL')} className="flex items-center justify-between p-4 rounded-xl border border-blue-400 dark:border-blue-500 bg-blue-50 dark:bg-blue-500/10 hover:bg-blue-100 dark:hover:bg-blue-500/20 transition group">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-blue-600 rounded-lg text-white group-hover:scale-110 transition-transform shadow-lg shadow-blue-500/30">
-                        <CreditCard className="w-5 h-5" />
-                      </div>
-                      <div className="text-left">
-                        <span className="font-bold text-lg block text-blue-900 dark:text-blue-100">Karta (Terminal)</span>
-                        <span className="text-xs text-blue-600 dark:text-blue-300">Humo/Uzcard ulanishi</span>
-                      </div>
-                    </div>
-                  </button>
-                  <button onClick={() => handlePayment('APP')} className="flex items-center justify-between p-4 rounded-xl border border-gray-200 dark:border-slate-700 hover:border-purple-500 hover:bg-purple-50 dark:hover:bg-purple-500/10 transition group">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-purple-100 dark:bg-purple-500/20 rounded-lg text-purple-600 dark:text-purple-400 group-hover:scale-110 transition-transform">
-                        <Smartphone className="w-5 h-5" />
-                      </div>
-                      <span className="font-semibold text-lg">Ilova (App)</span>
-                    </div>
-                  </button>
-                </div>
-              )}
+            <div className="flex-1 flex flex-col items-center justify-center text-center p-6 text-gray-500 dark:text-gray-400 border-2 border-dashed border-blue-500/50 rounded-xl animate-pulse">
+              <Car className="w-12 h-12 mb-3 text-blue-500" />
+              <p className="font-bold text-blue-600 dark:text-blue-400">To'lov modal oynasi ochilgan</p>
+              <p className="text-sm mt-2">Mashina raqami: <strong>{checkoutSession.plate}</strong></p>
+              <button 
+                onClick={() => setCheckoutSession({ ...checkoutSession })} 
+                className="mt-4 px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg text-sm hover:bg-blue-700 transition"
+              >
+                Modalni ochish
+              </button>
             </div>
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center text-center p-6 text-gray-500 dark:text-gray-400 border-2 border-dashed border-gray-200 dark:border-slate-700 rounded-xl">
@@ -292,6 +261,114 @@ const Dashboard = () => {
           )}
         </div>
       </div>
+
+      {/* Chiqish To'lovi Modal Oynasi */}
+      {checkoutSession && (
+        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-md w-full overflow-hidden shadow-2xl border border-gray-100 dark:border-slate-800 flex flex-col scale-up">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-red-600 to-orange-500 p-6 text-white flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <Car className="w-6 h-6 animate-pulse" />
+                <h3 className="text-xl font-bold">Chiqish to'lovi kutilmoqda</h3>
+              </div>
+              <button 
+                onClick={() => setCheckoutSession(null)} 
+                className="text-white/80 hover:text-white bg-white/10 hover:bg-white/20 p-2 rounded-full transition-all"
+              >
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-6 space-y-6 flex-1">
+              {/* Plate Number (Real License Plate Style) */}
+              <div className="flex justify-center">
+                <div className="relative border-4 border-slate-950 dark:border-slate-100 rounded-xl bg-white text-slate-950 font-bold px-8 py-3 text-3xl tracking-widest shadow-md flex items-center gap-3">
+                  <div className="flex flex-col items-center justify-between text-[10px] border-r border-slate-950 pr-2 mr-1">
+                    <span className="text-blue-600 font-extrabold text-[12px] leading-none">UZ</span>
+                  </div>
+                  <span>{checkoutSession.plate}</span>
+                </div>
+              </div>
+
+              {/* Details List */}
+              <div className="bg-gray-50 dark:bg-slate-800/50 rounded-2xl p-4 space-y-3 border border-gray-100 dark:border-slate-800">
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-gray-500 dark:text-gray-400">⏱️ Parkovka vaqti:</span>
+                  <span className="font-semibold text-lg text-slate-850 dark:text-white">
+                    {(() => {
+                      const mins = checkoutSession.durationMins;
+                      if (!mins) return 'Noma\'lum';
+                      if (mins < 60) return `${mins} daqiqa`;
+                      const hrs = Math.floor(mins / 60);
+                      const remMins = mins % 60;
+                      return remMins > 0 ? `${hrs} soat ${remMins} daqiqa` : `${hrs} soat`;
+                    })()}
+                  </span>
+                </div>
+                {checkoutSession.entryTime && (
+                  <div className="flex justify-between items-center text-sm border-t border-gray-200/50 dark:border-slate-700/50 pt-2">
+                    <span className="text-gray-500 dark:text-gray-400">📥 Kirish vaqti:</span>
+                    <span className="font-medium text-gray-700 dark:text-gray-300">
+                      {new Date(checkoutSession.entryTime).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                )}
+                <div className="flex justify-between items-center text-sm border-t border-gray-200/50 dark:border-slate-700/50 pt-2">
+                  <span className="text-gray-500 dark:text-gray-400">📤 Chiqish vaqti:</span>
+                  <span className="font-medium text-gray-700 dark:text-gray-300">
+                    {new Date().toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </div>
+              </div>
+
+              {/* Total Fee Display */}
+              <div className="text-center bg-red-500/10 border border-red-500/20 rounded-2xl py-4">
+                <p className="text-xs font-semibold text-red-600 dark:text-red-400 uppercase tracking-wider">Jami to'lov summasi</p>
+                <p className="text-4xl font-extrabold text-red-600 dark:text-red-500 mt-1">
+                  {checkoutSession.fee.toLocaleString()} <span className="text-lg font-bold">UZS</span>
+                </p>
+              </div>
+
+              {/* Actions or Loading State */}
+              {isProcessingTerminal ? (
+                <div className="flex flex-col items-center justify-center text-center p-6 bg-blue-50 dark:bg-blue-900/20 rounded-2xl border border-blue-200 dark:border-blue-800/30">
+                  <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-3"></div>
+                  <h4 className="font-bold text-blue-800 dark:text-blue-300">Terminalga ulanildi...</h4>
+                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Mijoz terminalga PIN kod kiritishini kuting.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-3">
+                  <button 
+                    onClick={() => handlePayment('CASH')} 
+                    className="flex items-center justify-center gap-3 w-full bg-gradient-to-r from-green-600 to-emerald-500 hover:from-green-700 hover:to-emerald-600 text-white font-bold py-4 px-6 rounded-2xl shadow-lg shadow-green-600/20 transition-all hover:scale-[1.01]"
+                  >
+                    <Banknote className="w-6 h-6" />
+                    <span>To'landi (Naqd Pul)</span>
+                  </button>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button 
+                      onClick={() => handlePayment('TERMINAL')} 
+                      className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-xl shadow-md transition-all hover:scale-[1.01]"
+                    >
+                      <CreditCard className="w-5 h-5" />
+                      <span className="text-sm">Karta (Terminal)</span>
+                    </button>
+                    <button 
+                      onClick={() => handlePayment('APP')} 
+                      className="flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-4 rounded-xl shadow-md transition-all hover:scale-[1.01]"
+                    >
+                      <Smartphone className="w-5 h-5" />
+                      <span className="text-sm">Ilova (App)</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

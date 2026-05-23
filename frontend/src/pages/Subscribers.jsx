@@ -1,12 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Users, Trash2, Plus, Calendar } from 'lucide-react';
+import { Users, Trash2, Plus, Calendar, Settings } from 'lucide-react';
 
 const Subscribers = () => {
   const [subscribers, setSubscribers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [importing, setImporting] = useState(false);
+
+  // Tariff states
+  const [tariff, setTariff] = useState({ pricePerMin: 100, freeMinutes: 10 });
+  const [tariffType, setTariffType] = useState('MINUTE'); // MINUTE or HOUR
+  const [tariffValue, setTariffValue] = useState(100);
+  const [tariffSaving, setTariffSaving] = useState(false);
 
   const fetchSubscribers = async () => {
     try {
@@ -17,9 +23,45 @@ const Subscribers = () => {
     }
   };
 
+  const fetchTariff = async () => {
+    try {
+      const res = await axios.get('/api/tariff');
+      const data = res.data;
+      setTariff(data);
+      if (data.pricePerMin > 0 && data.pricePerMin < 10) {
+        setTariffType('HOUR');
+        setTariffValue(Math.round(data.pricePerMin * 60));
+      } else {
+        setTariffType('MINUTE');
+        setTariffValue(data.pricePerMin);
+      }
+    } catch (e) {
+      console.error('Failed to fetch tariff:', e);
+    }
+  };
+
   useEffect(() => {
     fetchSubscribers();
+    fetchTariff();
   }, []);
+
+  const handleSaveTariff = async (e) => {
+    e.preventDefault();
+    setTariffSaving(true);
+    try {
+      const pricePerMin = tariffType === 'HOUR' ? parseFloat(tariffValue) / 60 : parseFloat(tariffValue);
+      await axios.post('/api/tariff', {
+        pricePerMin,
+        freeMinutes: parseInt(tariff.freeMinutes)
+      });
+      alert("Tarif sozlamalari muvaffaqiyatli saqlandi!");
+      fetchTariff();
+    } catch (err) {
+      alert("Xatolik yuz berdi: " + err.message);
+    } finally {
+      setTariffSaving(false);
+    }
+  };
 
   const handleAdd = async (e) => {
     e.preventDefault();
@@ -107,39 +149,106 @@ const Subscribers = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="glass-panel p-6 rounded-2xl lg:col-span-1 h-fit">
-          <div className="flex items-center gap-2 mb-6">
-            <Plus className="w-5 h-5 text-blue-500" />
-            <h2 className="text-lg font-bold">Yangi Abonent</h2>
-          </div>
-          <form onSubmit={handleAdd} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-1">Davlat raqami</label>
-              <input name="plate" required placeholder="01A123AA" className="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-700 p-2.5 rounded-xl uppercase" />
+        <div className="flex flex-col gap-6 lg:col-span-1">
+          {/* Yangi Abonent */}
+          <div className="glass-panel p-6 rounded-2xl h-fit">
+            <div className="flex items-center gap-2 mb-6">
+              <Plus className="w-5 h-5 text-blue-500" />
+              <h2 className="text-lg font-bold">Yangi Abonent</h2>
             </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Kamera ID (Card No)</label>
-              <input name="cardNo" placeholder="Masalan: 27 yoki 9999" className="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-700 p-2.5 rounded-xl" />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
+            <form onSubmit={handleAdd} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-1">Muddat (Oy)</label>
-                <select name="months" className="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-700 p-2.5 rounded-xl">
-                  <option value="1">1 Oy</option>
-                  <option value="3">3 Oy</option>
-                  <option value="6">6 Oy</option>
-                  <option value="12">1 Yil</option>
+                <label className="block text-sm font-medium mb-1">Davlat raqami</label>
+                <input name="plate" required placeholder="01A123AA" className="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-700 p-2.5 rounded-xl uppercase" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Kamera ID (Card No)</label>
+                <input name="cardNo" placeholder="Masalan: 27 yoki 9999" className="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-700 p-2.5 rounded-xl" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Muddat (Oy)</label>
+                  <select name="months" className="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-700 p-2.5 rounded-xl">
+                    <option value="1">1 Oy</option>
+                    <option value="3">3 Oy</option>
+                    <option value="6">6 Oy</option>
+                    <option value="12">1 Yil</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Narxi (UZS)</label>
+                  <input name="amount" type="number" required placeholder="Masalan: 150000" className="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-700 p-2.5 rounded-xl" />
+                </div>
+              </div>
+              <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white p-2.5 rounded-xl font-medium transition shadow-lg shadow-blue-500/20">
+                Qo'shish
+              </button>
+            </form>
+          </div>
+
+          {/* Tarif Sozlamalari */}
+          <div className="glass-panel p-6 rounded-2xl h-fit">
+            <div className="flex items-center gap-2 mb-6">
+              <Settings className="w-5 h-5 text-blue-500" />
+              <h2 className="text-lg font-bold">Tarif Sozlamalari (Obunasizlar uchun)</h2>
+            </div>
+            <form onSubmit={handleSaveTariff} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Tarif turi</label>
+                <select 
+                  value={tariffType} 
+                  onChange={(e) => {
+                    const type = e.target.value;
+                    setTariffType(type);
+                    if (type === 'HOUR') {
+                      setTariffValue(prev => prev === 100 ? 5000 : prev * 60);
+                    } else {
+                      setTariffValue(prev => prev === 5000 ? 100 : Math.round(prev / 60));
+                    }
+                  }} 
+                  className="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-700 p-2.5 rounded-xl"
+                >
+                  <option value="MINUTE">Daqiqabay</option>
+                  <option value="HOUR">Soatbay</option>
                 </select>
               </div>
+
               <div>
-                <label className="block text-sm font-medium mb-1">Narxi (UZS)</label>
-                <input name="amount" type="number" required placeholder="Masalan: 150000" className="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-700 p-2.5 rounded-xl" />
+                <label className="block text-sm font-medium mb-1">
+                  Qiymat (UZS / {tariffType === 'HOUR' ? 'soat' : 'daqiqa'})
+                </label>
+                <input 
+                  type="number" 
+                  required 
+                  value={tariffValue}
+                  onChange={(e) => setTariffValue(e.target.value)}
+                  placeholder={tariffType === 'HOUR' ? 'Masalan: 5000' : 'Masalan: 100'} 
+                  className="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-700 p-2.5 rounded-xl" 
+                />
               </div>
-            </div>
-            <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white p-2.5 rounded-xl font-medium transition shadow-lg shadow-blue-500/20">
-              Qo'shish
-            </button>
-          </form>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">Bepul vaqt (Free Time)</label>
+                <select 
+                  value={tariff.freeMinutes} 
+                  onChange={(e) => setTariff({ ...tariff, freeMinutes: parseInt(e.target.value) })}
+                  className="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-700 p-2.5 rounded-xl"
+                >
+                  <option value="0">Kerak emas</option>
+                  <option value="5">5 daqiqa</option>
+                  <option value="10">10 daqiqa</option>
+                </select>
+              </div>
+
+              <button 
+                type="submit" 
+                disabled={tariffSaving}
+                className="w-full bg-green-600 hover:bg-green-700 text-white p-2.5 rounded-xl font-medium transition shadow-lg shadow-green-500/20 disabled:opacity-50"
+              >
+                {tariffSaving ? 'Saqlanmoqda...' : 'Saqlash'}
+              </button>
+            </form>
+          </div>
         </div>
 
         <div className="glass-panel rounded-2xl lg:col-span-2 overflow-hidden">

@@ -391,7 +391,14 @@ app.post('/api/webhook/camera', upload.any(), async (req, res) => {
       });
 
       await prisma.log.create({ data: { type: 'EXIT', carId: car.id } });
-      io.emit('car_exit', { plateNumber, fee, time: exitTime, sessionId: session.id });
+      io.emit('car_exit', { 
+        plateNumber, 
+        fee, 
+        time: exitTime, 
+        sessionId: session.id, 
+        entryTime: session.entryTime, 
+        durationMins: diffMins 
+      });
 
       if (fee === 0) {
         return res.status(200).json({ allowed: true, action: 'OPEN_BARRIER', fee: 0 });
@@ -408,6 +415,49 @@ app.post('/api/webhook/camera', upload.any(), async (req, res) => {
 });
 
 // --- ADMIN API ---
+app.get('/api/tariff', async (req, res) => {
+  try {
+    const tariff = await prisma.tariff.findFirst();
+    if (!tariff) {
+      const firstLot = await prisma.parkingLot.findFirst();
+      if (firstLot) {
+        const newTariff = await prisma.tariff.create({
+          data: { name: 'Standard', pricePerMin: 100, freeMinutes: 10, lotId: firstLot.id }
+        });
+        return res.json(newTariff);
+      }
+      return res.json({ pricePerMin: 0, freeMinutes: 0 });
+    }
+    res.json(tariff);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/tariff', async (req, res) => {
+  try {
+    const { pricePerMin, freeMinutes } = req.body;
+    const firstLot = await prisma.parkingLot.findFirst();
+    if (!firstLot) return res.status(404).json({ error: 'No parking lot found' });
+
+    const existing = await prisma.tariff.findFirst({ where: { lotId: firstLot.id } });
+    let tariff;
+    if (existing) {
+      tariff = await prisma.tariff.update({
+        where: { id: existing.id },
+        data: { pricePerMin: parseFloat(pricePerMin), freeMinutes: parseInt(freeMinutes) }
+      });
+    } else {
+      tariff = await prisma.tariff.create({
+        data: { name: 'Standard', pricePerMin: parseFloat(pricePerMin), freeMinutes: parseInt(freeMinutes), lotId: firstLot.id }
+      });
+    }
+    res.json(tariff);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.get('/api/cars', async (req, res) => {
   const cars = await prisma.car.findMany();
   res.json(cars);
