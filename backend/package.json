@@ -26,6 +26,7 @@
     "node-telegram-bot-api": "^0.67.0",
     "sharp": "^0.34.5",
     "socket.io": "^4.8.3",
+    "socket.io-client": "^4.8.3",
     "urllib": "^4.9.0",
     "xlsx": "^0.18.5"
   },

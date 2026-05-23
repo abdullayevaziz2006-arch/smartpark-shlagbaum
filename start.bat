@@ -18,11 +18,11 @@ if %errorlevel% neq 0 (
 
 :: Backend serverni alohida oynada ishga tushirish (Port: 3001)
 echo [1/2] SmartPark Backend server ishga tushirilmoqda (Port: 3001)...
-start "SmartPark Backend" cmd /c "cd backend && node index.js"
+start "SmartPark Backend" cmd /k "cd backend && node index.js"
 
 :: Customer-app (Mijoz ilovasi) ni alohida oynada ishga tushirish
 echo [2/2] SmartPark Customer App (Mijoz Ilovasi) ishga tushirilmoqda...
-start "SmartPark Customer App" cmd /c "cd customer-app && node node_modules\vite\bin\vite.js"
+start "SmartPark Customer App" cmd /k "cd customer-app && node node_modules\vite\bin\vite.js"
 
 :: Brauzerda Admin Panelni ochish
 echo Loyiha muvaffaqiyatli boshlandi!

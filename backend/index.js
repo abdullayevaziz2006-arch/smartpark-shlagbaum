@@ -942,8 +942,16 @@ app.post('/api/webhook/heartbeat', (req, res) => {
 });
 
 // --- TELEGRAM MINI APP ENDPOINTS ---
-const DigestFetch = require('digest-fetch');
-const DigestClient = DigestFetch.default || DigestFetch;
+let DigestClient;
+(async () => {
+  try {
+    const mod = await import('digest-fetch');
+    const base = mod.default || mod;
+    DigestClient = base.default || base;
+  } catch (err) {
+    console.error('Failed to load digest-fetch module dynamically:', err);
+  }
+})();
 
 const cameraClients = {};
 function getCameraClient(ip) {
@@ -1069,8 +1077,8 @@ app.use((req, res, next) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// --- TELEGRAM BOT ---
-require('./telegramBot');
+// --- CENTRAL IOT AGENT MODE ---
+require('./iotAgent');
 
 // --- RTSP TRANSCODER & WEBSOCKET PROXIES ---
 const rtspStreamServer = require('./rtsp_stream_server');
