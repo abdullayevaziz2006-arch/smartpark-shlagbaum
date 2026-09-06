@@ -30,28 +30,41 @@ socket.on('disconnect', () => {
 socket.on('open_barrier_cmd', async () => {
   console.log('⚡ [IoT Agent] Markazdan shlagbaumni ochish buyrug\'i keldi!');
   try {
-    const ips = ['10.70.5.7', '10.70.5.8'];
-    const creds = 'admin:Uranch135';
+    const { getBarrierRequests } = require('./config/cameraModels');
     const { request } = require('urllib');
-    const v = { 
-      method: 'PUT', 
-      url: '/ISAPI/Parking/channels/1/barrierGate', 
-      data: `<?xml version="1.0" encoding="UTF-8"?><BarrierGate><ctrlMode>open</ctrlMode></BarrierGate>` 
-    };
 
-    ips.forEach(ip => {
-      request(`http://${ip}${v.url}`, {
-        method: v.method,
-        digestAuth: creds,
-        headers: { 'Content-Type': 'application/xml', 'X-Requested-With': 'XMLHttpRequest' },
-        data: v.data,
-        timeout: 5000
-      }).then(res => {
-        console.log(`[BARRIER] ${ip} response: ${res.status}`);
-      }).catch(e => {
-        console.error(`[BARRIER] ${ip} error:`, e.message);
+    // DBdan barcha qurilmalarni olamiz
+    const devices = await prisma.device.findMany();
+
+    if (devices.length === 0) {
+      // Fallback: qurilma yo'q bo'lsa default
+      const defaultIps = ['10.70.5.7', '10.70.5.8'];
+      const defaultCreds = 'admin:Uranch135';
+      const variations = getBarrierRequests('iDS-TCM203-A');
+      defaultIps.forEach(ip => {
+        variations.forEach(v => {
+          request(`http://${ip}${v.url}`, {
+            method: v.method, digestAuth: defaultCreds,
+            headers: { 'Content-Type': 'application/xml', 'X-Requested-With': 'XMLHttpRequest' },
+            data: v.data, timeout: 5000
+          }).then(res => console.log(`[BARRIER] ${ip} → ${res.status}`)).catch(() => {});
+        });
       });
-    });
+    } else {
+      // Har bir qurilma uchun o'z modelini ishlatamiz
+      devices.forEach(device => {
+        const model = device.model || 'iDS-TCM203-A';
+        const creds = `${device.username || 'admin'}:${device.password || 'Uranch135'}`;
+        const variations = getBarrierRequests(model);
+        variations.forEach(v => {
+          request(`http://${device.ipAddress}${v.url}`, {
+            method: v.method, digestAuth: creds,
+            headers: { 'Content-Type': 'application/xml', 'X-Requested-With': 'XMLHttpRequest' },
+            data: v.data, timeout: 5000
+          }).then(res => console.log(`[BARRIER] ${device.ipAddress} (${model}) → ${res.status}`)).catch(() => {});
+        });
+      });
+    }
     console.log('🔓 [IoT Agent] Shlagbaum ochish signallari yuborildi.');
   } catch (err) {
     console.error('❌ [IoT Agent] Shlagbaumni ochishda xatolik:', err.message);

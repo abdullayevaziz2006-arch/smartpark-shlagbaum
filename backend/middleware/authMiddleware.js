@@ -1,6 +1,5 @@
 const jwt = require('jsonwebtoken');
 
-// A placeholder secret, in production it should be in .env
 const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-smartpark-key';
 
 function authenticateToken(req, res, next) {

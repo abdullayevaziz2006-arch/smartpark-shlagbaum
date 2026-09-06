@@ -1,24 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { io } from 'socket.io-client';
-import LiveCameraFeed from '../components/LiveCameraFeed';
 import { 
-  DollarSign, 
   Car, 
-  Activity, 
-  TrendingUp, 
-  LogIn, 
-  LogOut, 
-  ShieldAlert, 
-  X,
-  CreditCard
+  Search, 
+  Filter, 
+  DollarSign, 
+  CreditCard, 
+  X, 
+  CheckCircle, 
+  AlertTriangle,
+  Clock
 } from 'lucide-react';
 
-const Dashboard = () => {
-  const [stats, setStats] = useState({ totalRevenue: 0, activeSessions: 0, cashiersCount: 0 });
-  const [activeSessions, setActiveSessions] = useState([]);
-  const [logs, setLogs] = useState([]);
+const ActiveCars = () => {
+  const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterType, setFilterType] = useState('ALL'); // ALL, SUBSCRIBERS, REGULAR
   
   // Checkout modal state
   const [checkoutSession, setCheckoutSession] = useState(null);
@@ -28,57 +27,42 @@ const Dashboard = () => {
   const [cashReceived, setCashReceived] = useState('');
   const [checkoutLoading, setCheckoutLoading] = useState(false);
 
-  // Fetch all data
-  const fetchData = async () => {
+  // Fetch active sessions
+  const fetchSessions = async () => {
     try {
-      // Fetch stats
-      const statsRes = await axios.get('/api/admin/dashboard-stats');
-      setStats(statsRes.data);
-
-      // Fetch sessions
-      const sessionsRes = await axios.get('/api/sessions');
-      const active = sessionsRes.data.filter(s => s.status === 'ACTIVE');
-      setActiveSessions(active);
-
-      // Fetch recent logs
-      const logsRes = await axios.get('/api/logs');
-      setLogs(logsRes.data.slice(0, 5));
+      const response = await axios.get('/api/sessions');
+      // Filter for active sessions only
+      const active = response.data.filter(s => s.status === 'ACTIVE');
+      setSessions(active);
     } catch (err) {
-      console.error('Error fetching dashboard data:', err.message);
+      console.error('Error fetching active sessions:', err.message);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchData();
+    fetchSessions();
 
     // Set up Socket.io for live updates
     const socket = io(window.location.origin);
     
-    socket.on('car_entry', (data) => {
-      console.log('Live update: Car entry', data);
-      fetchData();
+    socket.on('car_entry', () => {
+      fetchSessions();
     });
 
-    socket.on('car_exit', (data) => {
-      console.log('Live update: Car exit', data);
-      fetchData();
-    });
-
-    socket.on('alert', (data) => {
-      alert(`⚠️ HUShYORLIK: ${data.message}`);
-      fetchData();
+    socket.on('car_exit', () => {
+      fetchSessions();
     });
 
     socket.on('checkout_request', (data) => {
-      console.log('Automated checkout request received:', data);
+      console.log('ActiveCars page: Automated checkout request received:', data);
       setCheckoutAmount(data.fee);
       setCheckoutSession(data.session);
       setCheckoutDetails(data);
       setPaymentMethod('CASH');
       setCashReceived('');
-      fetchData();
+      fetchSessions();
     });
 
     return () => {
@@ -95,27 +79,41 @@ const Dashboard = () => {
     return hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`;
   };
 
+  // Estimate fee locally
+  const estimateFee = (entryTime, isSubscriber, tariff) => {
+    if (isSubscriber) return 0;
+    if (!tariff) return 0;
+    
+    const diffMs = new Date() - new Date(entryTime);
+    const diffMins = Math.ceil(diffMs / 60000);
+    
+    let billableMins = diffMins - tariff.freeMinutes;
+    if (billableMins <= 0) return 0;
+    
+    let fee = billableMins * tariff.pricePerMin;
+    if (tariff.maxDaily && fee > tariff.maxDaily) fee = tariff.maxDaily;
+    
+    return fee;
+  };
+
+  const [currentTariff, setCurrentTariff] = useState(null);
+
+  useEffect(() => {
+    // Fetch tariff details for real-time local calculations
+    axios.get('/api/tariff')
+      .then(res => setCurrentTariff(res.data))
+      .catch(err => console.error('Error fetching tariff info:', err));
+  }, []);
+
   const handleCheckoutOpen = async (session) => {
     try {
-      const exitTime = new Date().toISOString();
-      const entryDate = new Date(session.entryTime);
-      const diffMins = Math.ceil((new Date() - entryDate) / 60000);
-      
-      const tariffRes = await axios.get('/api/tariff');
-      const tariff = tariffRes.data;
-      
-      let fee = 0;
       const isSub = session.car.isSubscriber && session.car.subscriberEnd && new Date(session.car.subscriberEnd) > new Date();
-
-      const freeMinutes = (isSub || !tariff) ? 0 : tariff.freeMinutes;
-      if (!isSub && tariff) {
-        let billableMins = diffMins - tariff.freeMinutes;
-        if (billableMins > 0) {
-          fee = billableMins * tariff.pricePerMin;
-          if (tariff.maxDaily && fee > tariff.maxDaily) fee = tariff.maxDaily;
-        }
-      }
+      const fee = estimateFee(session.entryTime, isSub, currentTariff);
       
+      const freeMinutes = (isSub || !currentTariff) ? 0 : currentTariff.freeMinutes;
+      const diffMs = new Date() - new Date(session.entryTime);
+      const diffMins = Math.ceil(diffMs / 60000);
+
       setCheckoutAmount(fee);
       setCheckoutSession(session);
       setCheckoutDetails({
@@ -129,7 +127,7 @@ const Dashboard = () => {
       setPaymentMethod('CASH');
       setCashReceived('');
     } catch (err) {
-      console.error('Error calculating manual fee:', err);
+      console.error('Error setting checkout session:', err);
       setCheckoutAmount(0);
       setCheckoutSession(session);
       setCheckoutDetails(null);
@@ -143,7 +141,7 @@ const Dashboard = () => {
       if (paymentMethod === 'CASH') {
         const received = parseFloat(cashReceived || 0);
         if (received < checkoutAmount) {
-          alert("Qabul qilingan mablag' to'lov miqdoridan kam bo'lishi mumkin emas!");
+          alert("Received cash amount cannot be less than the total amount!");
           setCheckoutLoading(false);
           return;
         }
@@ -154,7 +152,6 @@ const Dashboard = () => {
           insertedAmount: received
         });
       } else {
-        // Card payment
         await axios.post('/api/payment/terminal', {
           sessionId: checkoutSession.id,
           amount: checkoutAmount
@@ -165,14 +162,27 @@ const Dashboard = () => {
       await axios.post('/api/barrier/open');
       
       setCheckoutSession(null);
-      fetchData();
+      fetchSessions();
     } catch (err) {
       console.error('Checkout error:', err);
-      alert('To\'lovni amalga oshirishda xatolik yuz berdi: ' + (err.response?.data?.error || err.message));
+      alert('An error occurred during checkout: ' + (err.response?.data?.error || err.message));
     } finally {
       setCheckoutLoading(false);
     }
   };
+
+  // Filtered and searched sessions
+  const filteredSessions = sessions.filter(session => {
+    const matchesSearch = session.car.plateNumber.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    const isSub = session.car.isSubscriber && session.car.subscriberEnd && new Date(session.car.subscriberEnd) > new Date();
+    const matchesFilter = 
+      filterType === 'ALL' || 
+      (filterType === 'SUBSCRIBERS' && isSub) || 
+      (filterType === 'REGULAR' && !isSub);
+
+    return matchesSearch && matchesFilter;
+  });
 
   if (loading) {
     return (
@@ -183,164 +193,132 @@ const Dashboard = () => {
   }
 
   return (
-    <div className="flex-1 p-8 bg-academic-bg space-y-8 overflow-y-auto max-h-[calc(100vh-4rem)]">
-      
-      {/* Metric Cards Row */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        
-        {/* Revenue Card */}
-        <div className="bg-white p-6 rounded-xl border border-surface-gray flex flex-col justify-center min-h-[110px]">
-          <span className="text-[11px] font-extrabold text-muted-slate uppercase tracking-wider">TOTAL REVENUE</span>
-          <p className="text-3xl font-extrabold text-ranch-red font-sans mt-3">
-            {(stats.totalRevenue || 0).toLocaleString('uz-UZ')} UZS
+    <div className="flex-1 p-8 bg-academic-bg space-y-6 overflow-y-auto max-h-[calc(100vh-4rem)]">
+      {/* Title Header */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-bold text-charcoal flex items-center gap-2">
+            <Car className="w-6 h-6 text-ranch-red" />
+            Active Parking Sessions
+          </h2>
+          <p className="text-xs text-muted-slate mt-1">
+            Currently monitoring {sessions.length} vehicles inside the parking lot.
           </p>
         </div>
 
-        {/* Active Occupancy Card */}
-        <div className="bg-white p-6 rounded-xl border border-surface-gray flex flex-col justify-center min-h-[110px]">
-          <span className="text-[11px] font-extrabold text-muted-slate uppercase tracking-wider">ACTIVE CARS</span>
-          <p className="text-3xl font-extrabold text-charcoal mt-3">
-            {stats.activeSessions || 0} <span className="text-base text-muted-slate font-medium">/ 100</span>
-          </p>
-          {/* Occupancy Indicator Bar */}
-          <div className="w-full bg-surface-gray h-2 rounded-full overflow-hidden mt-4">
-            <div 
-              className="bg-ranch-red h-full rounded-full transition-all duration-500" 
-              style={{ width: `${Math.min(((stats.activeSessions || 0) / 100) * 100, 100)}%` }}
-            ></div>
+        {/* Action controls (Filters & Search) */}
+        <div className="flex flex-col sm:flex-row gap-3">
+          {/* Search bar */}
+          <div className="relative">
+            <Search className="w-4 h-4 text-muted-slate absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder="Search by license plate..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full sm:w-60 pl-9 pr-4 py-2 border border-surface-gray rounded-lg bg-white text-xs font-semibold focus:outline-none focus:border-ranch-red transition-all"
+            />
+          </div>
+
+          {/* Filter dropdown */}
+          <div className="relative flex items-center">
+            <Filter className="w-4 h-4 text-muted-slate absolute left-3 pointer-events-none" />
+            <select
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value)}
+              className="pl-9 pr-8 py-2 border border-surface-gray rounded-lg bg-white text-xs font-bold text-charcoal appearance-none focus:outline-none focus:border-ranch-red cursor-pointer transition-all"
+            >
+              <option value="ALL">All Vehicles</option>
+              <option value="SUBSCRIBERS">Subscribers</option>
+              <option value="REGULAR">Regular Visitors</option>
+            </select>
           </div>
         </div>
-
-        {/* Cashiers/Devices heartbeat card */}
-        <div className="bg-white p-6 rounded-xl border border-surface-gray flex flex-col justify-center min-h-[110px]">
-          <span className="text-[11px] font-extrabold text-muted-slate uppercase tracking-wider">CASHIER STATUS</span>
-          <div className="flex items-center gap-1.5 mt-4">
-            <div className="flex gap-1 items-center">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-            </div>
-            <p className="text-sm font-bold text-charcoal ml-2">
-              {stats.cashiersCount || 3} Cashiers Active
-            </p>
-          </div>
-        </div>
-
       </div>
 
-      {/* Main Split Panel */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        
-        {/* Left Side: Live Video Streams */}
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <LiveCameraFeed ip="10.70.5.8" name="Kirish" />
-            <LiveCameraFeed ip="10.70.5.7" name="Chiqish" />
-          </div>
-        </div>
+      {/* Main Table */}
+      <div className="bg-white rounded-xl border border-surface-gray overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-academic-bg/40 border-b border-surface-gray text-[10px] font-bold text-muted-slate uppercase tracking-wider">
+                <th className="py-4 px-6">License Plate</th>
+                <th className="py-4 px-6">Entry Time</th>
+                <th className="py-4 px-6">Duration</th>
+                <th className="py-4 px-6">Accumulated Fee</th>
+                <th className="py-4 px-6 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-surface-gray text-sm font-medium">
+              {filteredSessions.length === 0 ? (
+                <tr>
+                  <td colSpan="5" className="py-12 text-center text-muted-slate text-xs font-semibold">
+                    No active sessions match the search/filter criteria.
+                  </td>
+                </tr>
+              ) : (
+                filteredSessions.map((session) => {
+                  const isSub = session.car.isSubscriber && session.car.subscriberEnd && new Date(session.car.subscriberEnd) > new Date();
+                  const fee = estimateFee(session.entryTime, isSub, currentTariff);
 
-        {/* Right Side: Active Parked Cars Table */}
-        <div className="space-y-4">
-          <h3 className="text-lg font-bold text-charcoal">Active Vehicles in Parking</h3>
-          <div className="bg-white rounded-xl border border-surface-gray overflow-hidden">
-            <div className="overflow-x-auto max-h-[360px]">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-academic-bg/40 border-b border-surface-gray text-[10px] font-bold text-muted-slate uppercase tracking-wider">
-                    <th className="py-4 px-6">LICENSE PLATE</th>
-                    <th className="py-4 px-6">ENTRY TIME</th>
-                    <th className="py-4 px-6">DURATION</th>
-                    <th className="py-4 px-6 text-right">ACTION</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-surface-gray text-sm font-medium">
-                  {activeSessions.length === 0 ? (
-                    <tr>
-                      <td colSpan="4" className="py-8 text-center text-muted-slate text-xs font-semibold">
-                        No vehicles currently in parking
+                  return (
+                    <tr key={session.id} className="hover:bg-academic-bg/30 transition-colors">
+                      {/* Plate Number */}
+                      <td className="py-4 px-6 font-mono font-bold text-charcoal tracking-wide flex items-center gap-2">
+                        {session.car.plateNumber}
+                        {isSub ? (
+                          <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 font-semibold uppercase">
+                            Subscriber
+                          </span>
+                        ) : (
+                          <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-600 font-semibold uppercase">
+                            Regular
+                          </span>
+                        )}
+                      </td>
+
+                      {/* Entry Time */}
+                      <td className="py-4 px-6 text-muted-slate text-xs">
+                        <span className="block font-semibold text-charcoal">
+                          {new Date(session.entryTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                        </span>
+                        <span className="block text-[10px] text-muted-slate mt-0.5">
+                          {new Date(session.entryTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </span>
+                      </td>
+
+                      {/* Duration */}
+                      <td className="py-4 px-6 text-muted-slate text-xs flex items-center gap-1.5 mt-2">
+                        <Clock className="w-3.5 h-3.5 text-muted-slate" />
+                        <span>{formatDuration(session.entryTime)}</span>
+                      </td>
+
+                      {/* Accumulated Fee */}
+                      <td className="py-4 px-6 font-sans text-xs">
+                        {isSub ? (
+                          <span className="text-emerald-600 font-bold">Free (Sub)</span>
+                        ) : (
+                          <span className="text-charcoal font-bold font-sans">
+                            {fee.toLocaleString('uz-UZ')} UZS
+                          </span>
+                        )}
+                      </td>
+
+                      {/* Actions */}
+                      <td className="py-4 px-6 text-right">
+                        <button
+                          onClick={() => handleCheckoutOpen(session)}
+                          className="px-3.5 py-1.5 bg-ranch-red text-white hover:bg-ranch-red/90 rounded-lg text-xs font-bold transition-all shadow-sm"
+                        >
+                          Checkout / Release
+                        </button>
                       </td>
                     </tr>
-                  ) : (
-                    activeSessions.map((session) => (
-                      <tr key={session.id} className="hover:bg-academic-bg/30 transition-colors">
-                        <td className="py-3.5 px-6 font-mono font-bold text-charcoal tracking-wide">
-                          {session.car.plateNumber}
-                          {session.car.isSubscriber && (
-                            <span className="ml-2 text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 font-semibold uppercase">
-                              Sub
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-3.5 px-6 text-muted-slate text-xs">
-                          {new Date(session.entryTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}
-                        </td>
-                        <td className="py-3.5 px-6 text-muted-slate text-xs">
-                          {formatDuration(session.entryTime)}
-                        </td>
-                        <td className="py-3.5 px-6 text-right">
-                          <button
-                            onClick={() => handleCheckoutOpen(session)}
-                            className="text-ranch-red hover:underline text-xs font-bold font-sans"
-                          >
-                            Checkout
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-
-      </div>
-
-      {/* Bottom Section: Recent Log entries */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-base font-bold text-charcoal">Recent Activity Logs</h3>
-          <button 
-            onClick={fetchData} 
-            className="flex items-center gap-1.5 text-xs text-muted-slate hover:text-charcoal transition-colors font-medium"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H17" />
-            </svg>
-            <span>Refresh</span>
-          </button>
-        </div>
-        <div className="bg-white rounded-xl border border-surface-gray overflow-hidden p-6 font-mono text-[11px] text-muted-slate space-y-2">
-          {logs.length === 0 ? (
-            <div className="text-center py-2">No system logs available</div>
-          ) : (
-            logs.map((log) => {
-              const formattedTime = new Date(log.createdAt).toLocaleTimeString('en-US', { 
-                hour12: false, 
-                hour: '2-digit', 
-                minute: '2-digit', 
-                second: '2-digit' 
-              });
-              let logTypeClass = "text-blue-600 font-bold";
-              if (log.type === 'ENTRY') logTypeClass = "text-emerald-600 font-bold";
-              else if (log.type === 'EXIT') logTypeClass = "text-amber-600 font-bold";
-              else if (log.type === 'BLACKLIST_ATTEMPT') logTypeClass = "text-red-600 font-bold";
-
-              return (
-                <div key={log.id} className="flex items-start gap-2 border-b border-surface-gray/50 pb-2 last:border-0 last:pb-0">
-                  <span className="text-muted-slate shrink-0">
-                    [{formattedTime}]
-                  </span>
-                  <span className={logTypeClass}>
-                    {log.type}
-                  </span>
-                  <span className="flex-1 text-charcoal font-medium">
-                    Vehicle <strong className="font-bold font-mono">{log.car?.plateNumber || ''}</strong> {log.description || ''}
-                  </span>
-                </div>
-              );
-            })
-          )}
+                  );
+                })
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
 
@@ -482,4 +460,4 @@ const Dashboard = () => {
   );
 };
 
-export default Dashboard;
+export default ActiveCars;

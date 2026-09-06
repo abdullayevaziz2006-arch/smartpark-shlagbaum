@@ -1,6 +1,7 @@
 const TelegramBot = require('node-telegram-bot-api');
 const { PrismaClient } = require('@prisma/client');
 const { request } = require('urllib');
+const bcrypt = require('bcryptjs');
 
 const prisma = new PrismaClient();
 
@@ -8,8 +9,17 @@ const token = process.env.TELEGRAM_BOT_TOKEN;
 const allowedChatsStr = process.env.TELEGRAM_ALLOWED_CHATS || '';
 const allowedChats = allowedChatsStr.split(',').map(id => id.trim()).filter(Boolean);
 
+const centralUrl = process.env.CENTRAL_SERVER_URL || '';
+const isCloudMode = centralUrl && !centralUrl.includes('localhost') && !centralUrl.includes('127.0.0.1');
+
 if (!token) {
     console.warn('\n⚠️  [Telegram Bot] TELEGRAM_BOT_TOKEN topilmadi. .env faylini sozlang. Telegram Bot ishga tushmadi.');
+    module.exports = null;
+    return;
+}
+
+if (isCloudMode) {
+    console.log('\n☁️  [Telegram Bot] Dastur bulutli rejimda ishlamoqda (' + centralUrl + '). Telegram Bot markaziy serverda (Render) polling qiladi. Lokal bot polling faollashtirilmadi.');
     module.exports = null;
     return;
 }
@@ -17,13 +27,16 @@ if (!token) {
 const bot = new TelegramBot(token, { polling: true });
 console.log('🤖 [Telegram Bot] Muvaffaqiyatli ishga tushdi ✅');
 
-// Ruxsat tekshiruvi
-function isAuthorized(msg) {
-    if (allowedChats.length === 0) {
-        return true; // Bo'sh bo'lsa, hamma ishlata oladi (sozlash oson bo'lishi uchun)
-    }
+// Ruxsat tekshiruvi (async)
+async function isAuthorized(msg) {
     const chatId = String(msg.chat.id);
-    return allowedChats.includes(chatId);
+    if (allowedChats.includes(chatId)) {
+        return true;
+    }
+    const user = await prisma.user.findFirst({
+        where: { telegramChatId: chatId }
+    });
+    return !!user;
 }
 
 // Asosiy klaviatura tugmalari
@@ -39,11 +52,11 @@ const keyboard = {
 };
 
 // /start komandasi
-bot.onText(/\/start/, (msg) => {
-    if (!isAuthorized(msg)) {
+bot.onText(/\/start/, async (msg) => {
+    if (!(await isAuthorized(msg))) {
         bot.sendMessage(
             msg.chat.id, 
-            `❌ Kechirasiz, sizga ushbu botdan foydalanishga ruxsat berilmagan.\n\nSizning Chat ID: \`${msg.chat.id}\`\n\nBotdan foydalanish uchun ushbu ID ni serverning \`.env\` faylidagi \`TELEGRAM_ALLOWED_CHATS\` qismiga qo'shing.`, 
+            `❌ Kechirasiz, sizga ushbu botdan foydalanishga ruxsat berilmagan.\n\nSizning Chat ID: \`${msg.chat.id}\`\n\nBotdan foydalanish uchun botga o'z hisobingiz orqali kiring:\n/login <telefon_yoki_email> <parol>`, 
             { parse_mode: 'Markdown' }
         );
         return;
@@ -56,33 +69,75 @@ bot.onText(/\/start/, (msg) => {
     );
 });
 
+// /login komandasi
+bot.onText(/\/login\s+(\S+)\s+(\S+)/, async (msg, match) => {
+    const chatId = String(msg.chat.id);
+    const username = match[1];
+    const password = match[2];
+
+    try {
+        const cleanPhone = username.replace(/\D/g, '').slice(-9);
+
+        const user = await prisma.user.findFirst({
+            where: {
+                OR: [
+                    { username: username },
+                    { username: { contains: cleanPhone !== "" ? cleanPhone : username } }
+                ]
+            }
+        });
+
+        if (!user) {
+            bot.sendMessage(chatId, "❌ Foydalanuvchi topilmadi. Telefon yoki parolni tekshiring.");
+            return;
+        }
+
+        const isMatch = await bcrypt.compare(password, user.password);
+        if (!isMatch && password !== user.password) {
+            bot.sendMessage(chatId, "❌ Parol noto'g'ri.");
+            return;
+        }
+
+        // Chat IDni userga bog'laymiz
+        await prisma.user.update({
+            where: { id: user.id },
+            data: { telegramChatId: chatId }
+        });
+
+        bot.sendMessage(chatId, `✅ Salom, ${user.name}! SmartPark boshqaruv botiga muvaffaqiyatli kirdingiz.`, keyboard);
+    } catch (err) {
+        console.error('[Telegram Bot Login Error]:', err);
+        bot.sendMessage(chatId, "⚠️ Tizimga kirishda xatolik yuz berdi: " + err.message);
+    }
+});
+
 // /statistika komandasi
-bot.onText(/\/statistika/, (msg) => {
-    if (!isAuthorized(msg)) return;
+bot.onText(/\/statistika/, async (msg) => {
+    if (!(await isAuthorized(msg))) return;
     handleStatistika(msg.chat.id);
 });
 
 // /mashinalar komandasi
-bot.onText(/\/mashinalar/, (msg) => {
-    if (!isAuthorized(msg)) return;
+bot.onText(/\/mashinalar/, async (msg) => {
+    if (!(await isAuthorized(msg))) return;
     handleActiveCars(msg.chat.id);
 });
 
 // /open komandasi
-bot.onText(/\/open/, (msg) => {
-    if (!isAuthorized(msg)) return;
+bot.onText(/\/open/, async (msg) => {
+    if (!(await isAuthorized(msg))) return;
     handleOpenBarrier(msg.chat.id);
 });
 
 // Matnli xabarlarni kuzatish (klaviatura tugmalari uchun)
-bot.on('message', (msg) => {
+bot.on('message', async (msg) => {
     // Agar komandalar bo'lsa (/) bu yerda ishlov berilmasin
     if (msg.text && msg.text.startsWith('/')) return;
     
-    if (!isAuthorized(msg)) {
+    if (!(await isAuthorized(msg))) {
         bot.sendMessage(
             msg.chat.id, 
-            `❌ Kechirasiz, sizga ushbu botdan foydalanishga ruxsat berilmagan.\n\nSizning Chat ID: \`${msg.chat.id}\``, 
+            `❌ Kechirasiz, botdan foydalanish uchun tizimga kiring:\n/login <telefon_yoki_email> <parol>`, 
             { parse_mode: 'Markdown' }
         );
         return;
@@ -276,7 +331,7 @@ async function handleLiveCamera(chatId) {
                     inline_keyboard: [
                         [{
                             text: "📹 Jonli Kamera & Boshqaruv",
-                            web_app: { url: `https://hazardous-cheaper-might-magical.trycloudflare.com/mini-app` }
+                            web_app: { url: `https://coffee-own-gibraltar-employer.trycloudflare.com/mini-app` }
                         }]
                     ]
                 }

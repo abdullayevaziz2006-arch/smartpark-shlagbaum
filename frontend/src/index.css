@@ -1,11 +1,39 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss/base";
+@import "tailwindcss/components";
+@import "tailwindcss/utilities";
 
-.glass-panel {
-  @apply bg-white/70 dark:bg-slate-900/60 backdrop-blur-xl border border-gray-200 dark:border-slate-800 shadow-xl;
+@layer base {
+  body {
+    @apply bg-academic-bg text-charcoal font-sans antialiased;
+  }
 }
 
-body {
-  @apply bg-gray-50 dark:bg-[#0f172a] text-gray-900 dark:text-gray-100 transition-colors duration-300;
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-muted-slate/30 rounded-full hover:bg-muted-slate/50;
+}
+
+/* Pulse Animation for System Online Status */
+@keyframes status-pulse {
+  0%, 100% {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+}
+
+.animate-status-pulse {
+  animation: status-pulse 2s infinite ease-in-out;
 }

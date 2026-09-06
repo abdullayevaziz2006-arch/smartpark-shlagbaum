@@ -16,6 +16,7 @@ model User {
   ownedLots    ParkingLot[] @relation("UserParkingLots")
   parkingLotId String?
   parkingLot   ParkingLot? @relation("CashierParkingLot", fields: [parkingLotId], references: [id])
+  telegramChatId String?  @unique
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }
@@ -104,6 +105,7 @@ model Device {
   port      Int      @default(80)
   username  String?
   password  String?
+  model     String   @default("iDS-TCM203-A") // iDS-TCM203-A, DS-TCG205-E, DS-TCG406
   type      String   @default("ENTRY") // ENTRY, EXIT
   status    String   @default("ONLINE") // ONLINE, OFFLINE
   lotId     String

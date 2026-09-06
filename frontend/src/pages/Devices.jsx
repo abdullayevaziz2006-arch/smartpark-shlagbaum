@@ -1,178 +1,341 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Video, Plus, CheckCircle2, XCircle, Trash2, Loader2, RefreshCw } from 'lucide-react';
+import { 
+  Camera, 
+  Plus, 
+  Trash2, 
+  Activity, 
+  RefreshCw, 
+  Info,
+  Server,
+  Key,
+  Globe
+} from 'lucide-react';
 
 const Devices = () => {
   const [devices, setDevices] = useState([]);
-  const [deviceStatuses, setDeviceStatuses] = useState({});
-  const [syncingDevices, setSyncingDevices] = useState({});
+  const [loading, setLoading] = useState(true);
+  
+  // Form State
+  const [name, setName] = useState('');
+  const [ipAddress, setIpAddress] = useState('');
+  const [port, setPort] = useState(80);
+  const [type, setType] = useState('ENTRY');
+  const [username, setUsername] = useState('admin');
+  const [password, setPassword] = useState('Uranch135');
+  const [model, setModel] = useState('iDS-TCM203-A');
+  const [cameraModels, setCameraModels] = useState([]);
+  const [formLoading, setFormLoading] = useState(false);
 
-  const loadDevices = () => {
-    axios.get('/api/devices').then(res => {
-      setDevices(res.data);
-      res.data.forEach(device => checkDeviceStatus(device.id));
-    });
-  };
+  // Status mapping
+  const [pingStates, setPingStates] = useState({});
+  const [syncingStates, setSyncingStates] = useState({});
 
-  const checkDeviceStatus = async (id) => {
-    setDeviceStatuses(prev => ({ ...prev, [id]: 'CHECKING' }));
+  const fetchDevices = async () => {
     try {
-      const res = await axios.get(`/api/devices/${id}/ping`);
-      setDeviceStatuses(prev => ({ ...prev, [id]: res.data.status }));
+      const response = await axios.get('/api/devices');
+      setDevices(response.data);
     } catch (err) {
-      setDeviceStatuses(prev => ({ ...prev, [id]: 'OFFLINE' }));
-    }
-  };
-
-  const handleDeleteDevice = async (id) => {
-    if (!window.confirm("Kamerani o'chirmoqchimisiz?")) return;
-    try {
-      await axios.delete(`/api/devices/${id}`);
-      loadDevices();
-    } catch(err) {
-      alert("Xatolik yuz berdi");
-    }
-  };
-
-  const handleSyncDevice = async (id) => {
-    setSyncingDevices(prev => ({ ...prev, [id]: true }));
-    try {
-      const res = await axios.post(`/api/devices/${id}/sync`);
-      alert(`Sinxronizatsiya muvaffaqiyatli! ${res.data.syncedCount} ta yangi kirdi-chiqdi topilib bazaga qo'shildi.`);
-    } catch(err) {
-      alert("Kamera bilan bog'lanishda xatolik yuz berdi. Kamera parolini tekshiring yoki qurilma onlaynligiga ishonch hosil qiling.");
+      console.error('Error fetching devices:', err);
     } finally {
-      setSyncingDevices(prev => ({ ...prev, [id]: false }));
+      setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadDevices();
+    fetchDevices();
+    // Modellar ro'yxatini serverdan olamiz
+    axios.get('/api/camera-models').then(res => setCameraModels(res.data)).catch(() => {
+      setCameraModels([
+        { value: 'iDS-TCM203-A', label: 'iDS-TCM203-A (Hikvision Parking)' },
+        { value: 'DS-TCG205-E',  label: 'DS-TCG205-E (Hikvision ITC)' },
+        { value: 'DS-TCG406',    label: 'DS-TCG406 (Hikvision ITC)' },
+      ]);
+    });
   }, []);
 
   const handleAddDevice = async (e) => {
     e.preventDefault();
-    const data = {
-      name: e.target.name.value,
-      ipAddress: e.target.ipAddress.value,
-      port: e.target.port.value,
-      type: e.target.type.value,
-      username: e.target.username?.value || '',
-      password: e.target.password?.value || ''
-    };
+    if (!name || !ipAddress) return;
+
+    setFormLoading(true);
     try {
-      await axios.post('/api/devices', data);
-      e.target.reset();
-      loadDevices();
-    } catch(err) {
-      alert("Xatolik yuz berdi");
+      await axios.post('/api/devices', {
+        name,
+        ipAddress,
+        port: parseInt(port),
+        type,
+        username,
+        password,
+        model
+      });
+      setName('');
+      setIpAddress('');
+      setPort(80);
+      setType('ENTRY');
+      setUsername('admin');
+      setPassword('Uranch135');
+      setModel('iDS-TCM203-A');
+      fetchDevices();
+      alert("Qurilma muvaffaqiyatli qo'shildi!");
+    } catch (err) {
+      console.error(err);
+      alert('Xatolik yuz berdi: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setFormLoading(false);
     }
   };
 
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Qurilmalar</h1>
-        <p className="text-gray-500 dark:text-gray-400">Kameralar va shlagbaumlarni boshqarish</p>
+  const handleDeleteDevice = async (id) => {
+    if (!confirm("Ushbu qurilmani o'chirishni tasdiqlaysizmi?")) return;
+    try {
+      await axios.delete(`/api/devices/${id}`);
+      fetchDevices();
+      alert("Qurilma o'chirildi!");
+    } catch (err) {
+      console.error(err);
+      alert("O'chirishda xatolik yuz berdi");
+    }
+  };
+
+  const handlePingDevice = async (id) => {
+    setPingStates(prev => ({ ...prev, [id]: 'pinging' }));
+    try {
+      const response = await axios.get(`/api/devices/${id}/ping`);
+      setPingStates(prev => ({ ...prev, [id]: response.data.status }));
+    } catch (err) {
+      console.error('Ping failed:', err);
+      setPingStates(prev => ({ ...prev, [id]: 'OFFLINE' }));
+    }
+  };
+
+  const handleSyncDeviceLogs = async (id) => {
+    setSyncingStates(prev => ({ ...prev, [id]: true }));
+    try {
+      const response = await axios.post(`/api/devices/${id}/sync`);
+      alert(`Sinxronizatsiya yakunlandi: ${response.data.syncedCount} ta yangi mashina kiritildi.`);
+    } catch (err) {
+      console.error('Sync failed:', err);
+      alert('Kameradagi loglarni sinxronlashda xatolik yuz berdi');
+    } finally {
+      setSyncingStates(prev => ({ ...prev, [id]: false }));
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-academic-bg">
+        <div className="animate-spin rounded-full h-8 w-8 border-3 border-ranch-red border-t-transparent"></div>
       </div>
+    );
+  }
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="glass-panel p-6 rounded-2xl lg:col-span-1 h-fit">
-          <div className="flex items-center gap-2 mb-6">
-            <Plus className="w-5 h-5 text-blue-500" />
-            <h2 className="text-lg font-bold">Kamera qo'shish</h2>
-          </div>
-          <form onSubmit={handleAddDevice} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-1">Nomi</label>
-              <input name="name" required placeholder="Asosiy kirish kamerasi" className="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-700 p-2.5 rounded-xl" />
+  return (
+    <div className="flex-1 p-8 bg-academic-bg space-y-8 overflow-y-auto max-h-[calc(100vh-4rem)]">
+      
+      {/* Split grid: Device Form vs Devices List */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        {/* Left Side: Create Device form */}
+        <div className="lg:col-span-1">
+          <div className="bg-white p-6 rounded-xl border border-surface-gray space-y-5">
+            <div className="flex items-center gap-2 pb-3 border-b border-surface-gray">
+              <Camera className="w-5 h-5 text-ranch-red" />
+              <h3 className="font-bold text-charcoal text-sm">Yangi kamera qo'shish</h3>
             </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Static IP yoki Ngrok URL</label>
-              <input name="ipAddress" required placeholder="185.100.x.x yoki ngrok.io" className="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-700 p-2.5 rounded-xl" />
-              <p className="text-xs text-gray-500 mt-1">Global tarmoq orqali ulanish uchun</p>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-1">Port</label>
-                <input name="port" type="number" defaultValue="80" className="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-700 p-2.5 rounded-xl" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Turi</label>
-                <select name="type" className="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-700 p-2.5 rounded-xl">
-                  <option value="ENTRY">Kirish (IN)</option>
-                  <option value="EXIT">Chiqish (OUT)</option>
-                </select>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-1">Login (Kamera)</label>
-                <input name="username" placeholder="admin" className="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-700 p-2.5 rounded-xl" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Parol (Kamera)</label>
-                <input name="password" type="password" placeholder="***" className="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-700 p-2.5 rounded-xl" />
-              </div>
-            </div>
-            <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white p-2.5 rounded-xl font-medium transition shadow-lg shadow-blue-500/20">
-              Qo'shish
-            </button>
-          </form>
-        </div>
 
-        <div className="lg:col-span-2 space-y-4">
-          {devices.map(device => (
-            <div key={device.id} className="glass-panel p-5 rounded-2xl flex items-center justify-between group hover:border-blue-500 transition-colors">
-              <div className="flex items-center gap-4">
-                <div className={`p-3 rounded-xl ${device.type === 'ENTRY' ? 'bg-green-100 dark:bg-green-500/20 text-green-600 dark:text-green-400' : 'bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400'}`}>
-                  <Video className="w-6 h-6" />
+            <form onSubmit={handleAddDevice} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-muted-slate uppercase tracking-wider mb-1.5">Kamera nomi</label>
+                <input
+                  type="text"
+                  required
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="masalan, Kirish Kamera"
+                  className="w-full px-4 py-2.5 rounded-lg border border-surface-gray text-sm focus:outline-none focus:border-ranch-red focus:ring-2 focus:ring-ranch-red/20 transition-all font-semibold"
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
+                <div className="col-span-2">
+                  <label className="block text-xs font-bold text-muted-slate uppercase tracking-wider mb-1.5">IP Manzil</label>
+                  <input
+                    type="text"
+                    required
+                    value={ipAddress}
+                    onChange={(e) => setIpAddress(e.target.value)}
+                    placeholder="masalan, 10.70.5.8"
+                    className="w-full px-4 py-2.5 rounded-lg border border-surface-gray text-sm focus:outline-none focus:border-ranch-red focus:ring-2 focus:ring-ranch-red/20 transition-all font-semibold font-mono"
+                  />
                 </div>
                 <div>
-                  <h3 className="font-bold text-lg">{device.name}</h3>
-                  <p className="text-sm text-gray-500 flex items-center gap-2">
-                    {device.ipAddress}:{device.port}
-                    <span className="bg-gray-100 dark:bg-slate-800 px-2 py-0.5 rounded text-xs">{device.type}</span>
-                  </p>
+                  <label className="block text-xs font-bold text-muted-slate uppercase tracking-wider mb-1.5">Port</label>
+                  <input
+                    type="number"
+                    required
+                    value={port}
+                    onChange={(e) => setPort(e.target.value)}
+                    className="w-full px-4 py-2.5 rounded-lg border border-surface-gray text-sm focus:outline-none focus:border-ranch-red focus:ring-2 focus:ring-ranch-red/20 transition-all font-semibold font-mono"
+                  />
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                {deviceStatuses[device.id] === 'CHECKING' ? (
-                  <span className="flex items-center gap-1 text-sm font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 px-3 py-1 rounded-full">
-                    <Loader2 className="w-4 h-4 animate-spin" /> Tekshirilmoqda
-                  </span>
-                ) : deviceStatuses[device.id] === 'ONLINE' ? (
-                  <span className="flex items-center gap-1 text-sm font-medium text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-500/10 px-3 py-1 rounded-full">
-                    <CheckCircle2 className="w-4 h-4" /> Faol
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-1 text-sm font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 px-3 py-1 rounded-full">
-                    <XCircle className="w-4 h-4" /> Faol emas
-                  </span>
-                )}
-                <button 
-                  onClick={() => handleSyncDevice(device.id)} 
-                  disabled={syncingDevices[device.id]}
-                  className="p-2 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-xl transition-colors ml-4 flex items-center gap-1 text-sm font-medium" 
-                  title="Kameraning ichki tarixini dasturga tortib olish (Sinxronizatsiya)"
+
+              <div>
+                <label className="block text-xs font-bold text-muted-slate uppercase tracking-wider mb-1.5">Qurilma turi</label>
+                <select
+                  value={type}
+                  onChange={(e) => setType(e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-lg border border-surface-gray text-sm focus:outline-none focus:border-ranch-red focus:ring-2 focus:ring-ranch-red/20 transition-all font-semibold"
                 >
-                  <RefreshCw className={`w-5 h-5 ${syncingDevices[device.id] ? 'animate-spin' : ''}`} />
-                  <span className="hidden sm:inline">Sync</span>
-                </button>
-                <button onClick={() => handleDeleteDevice(device.id)} className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-xl transition-colors ml-2" title="O'chirish">
-                  <Trash2 className="w-5 h-5" />
-                </button>
+                  <option value="ENTRY">KIRISH (Entry Camera)</option>
+                  <option value="EXIT">ChIQISh (Exit Camera)</option>
+                </select>
               </div>
-            </div>
-          ))}
-          {devices.length === 0 && (
-            <div className="glass-panel p-12 rounded-2xl flex flex-col items-center justify-center text-gray-500 text-center">
-              <Video className="w-12 h-12 mb-4 opacity-20" />
-              <p>Kameralar hali qo'shilmagan</p>
-            </div>
-          )}
+
+              <div>
+                <label className="block text-xs font-bold text-muted-slate uppercase tracking-wider mb-1.5">Kamera modeli</label>
+                <select
+                  value={model}
+                  onChange={(e) => setModel(e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-lg border border-surface-gray text-sm focus:outline-none focus:border-ranch-red focus:ring-2 focus:ring-ranch-red/20 transition-all font-semibold"
+                >
+                  {cameraModels.length > 0
+                    ? cameraModels.map(m => <option key={m.value} value={m.value}>{m.label}</option>)
+                    : <>
+                        <option value="iDS-TCM203-A">iDS-TCM203-A (Hikvision Parking)</option>
+                        <option value="DS-TCG205-E">DS-TCG205-E (Hikvision ITC)</option>
+                        <option value="DS-TCG406">DS-TCG406 (Hikvision ITC)</option>
+                      </>
+                  }
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 border-t border-surface-gray pt-4">
+                <div>
+                  <label className="block text-xs font-bold text-muted-slate uppercase tracking-wider mb-1.5">Login</label>
+                  <input
+                    type="text"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    className="w-full px-4 py-2 py-2.5 rounded-lg border border-surface-gray text-sm focus:outline-none focus:border-ranch-red focus:ring-2 focus:ring-ranch-red/20 transition-all font-semibold"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-muted-slate uppercase tracking-wider mb-1.5">Parol</label>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full px-4 py-2 py-2.5 rounded-lg border border-surface-gray text-sm focus:outline-none focus:border-ranch-red focus:ring-2 focus:ring-ranch-red/20 transition-all font-semibold"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={formLoading}
+                className="w-full py-2.5 bg-ranch-red hover:bg-ranch-red/90 text-white rounded-lg text-sm font-bold transition-all shadow-sm flex items-center justify-center gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                Qurilmani saqlash
+              </button>
+            </form>
+          </div>
         </div>
+
+        {/* Right Side: Devices List */}
+        <div className="lg:col-span-2 space-y-6">
+          <h3 className="font-bold text-charcoal text-sm">Ulangan IP Kameralar</h3>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {devices.length === 0 ? (
+              <div className="col-span-2 bg-white rounded-xl border border-surface-gray p-8 text-center text-muted-slate text-xs font-semibold">
+                Sizda hech qanday IP kameralar ulanmagan
+              </div>
+            ) : (
+              devices.map((device) => {
+                const status = pingStates[device.id] || device.status || 'ONLINE';
+                const syncing = syncingStates[device.id] || false;
+
+                return (
+                  <div key={device.id} className="bg-white rounded-xl border border-surface-gray p-6 flex flex-col justify-between space-y-4">
+                    {/* Device Header */}
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-ranch-red/10 text-ranch-red flex items-center justify-center">
+                          <Camera className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-charcoal text-sm leading-tight">{device.name}</h4>
+                          <span className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase mt-1 px-2 py-0.5 rounded-full ${
+                            status === 'ONLINE'
+                              ? 'bg-emerald-500/10 text-emerald-600'
+                              : 'bg-red-500/10 text-red-600'
+                          }`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${status === 'ONLINE' ? 'bg-emerald-500 animate-status-pulse' : 'bg-red-500'}`}></span>
+                            {status === 'pinging' ? 'Tekshirilmoqda...' : status}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      <button
+                        onClick={() => handleDeleteDevice(device.id)}
+                        className="p-1.5 text-muted-slate hover:text-ranch-red hover:bg-ranch-red/10 rounded-lg transition-all"
+                        title="O'chirish"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    {/* Metadata details */}
+                    <div className="space-y-2 border-t border-surface-gray/50 pt-3 text-xs font-semibold text-muted-slate">
+                      <div className="flex items-center gap-1.5">
+                        <Globe className="w-3.5 h-3.5 text-charcoal" />
+                        <span>IP Manzil: <strong className="text-charcoal font-mono">{device.ipAddress}:{device.port}</strong></span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <Server className="w-3.5 h-3.5 text-charcoal" />
+                        <span>Qurilma turi: <strong className="text-charcoal">{device.type === 'ENTRY' ? 'KIRISH' : 'CHIQISH'}</strong></span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <Info className="w-3.5 h-3.5 text-charcoal" />
+                        <span>Model: <strong className="text-charcoal font-mono">{device.model || 'iDS-TCM203-A'}</strong></span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <Key className="w-3.5 h-3.5 text-charcoal" />
+                        <span>Kreditlar: <strong className="text-charcoal font-mono">{device.username}:***</strong></span>
+                      </div>
+                    </div>
+
+                    {/* Footer Tools (Ping & Sync) */}
+                    <div className="grid grid-cols-2 gap-3 border-t border-surface-gray/50 pt-4">
+                      <button
+                        onClick={() => handlePingDevice(device.id)}
+                        disabled={pingStates[device.id] === 'pinging'}
+                        className="py-2 px-3 border border-surface-gray hover:bg-academic-bg/50 rounded-lg text-[10px] font-bold text-charcoal transition-all flex items-center justify-center gap-1.5"
+                      >
+                        <Activity className="w-3.5 h-3.5" />
+                        Aloqani tekshirish
+                      </button>
+                      <button
+                        onClick={() => handleSyncDeviceLogs(device.id)}
+                        disabled={syncing}
+                        className="py-2 px-3 bg-ranch-red hover:bg-ranch-red/90 disabled:opacity-50 text-white rounded-lg text-[10px] font-bold transition-all flex items-center justify-center gap-1.5"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
+                        Arxivni sinxronlash
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+
       </div>
+
     </div>
   );
 };

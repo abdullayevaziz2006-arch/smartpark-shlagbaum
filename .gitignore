@@ -29,4 +29,9 @@ Thumbs.db
 # Standalone binary and packages
 node.exe
 *.zip
+SmartPark_Package/
+Users/
+backend/scratch/
+backend/sync_debug.log
+backend/camera_debug.log
 
