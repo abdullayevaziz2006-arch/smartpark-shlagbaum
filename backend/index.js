@@ -57,6 +57,11 @@ app.use((req, res, next) => {
 require('./iotAgent');
 require('./telegramBot');
 
+// Start ISUP Gateway Diagnostic TCP Servers
+const { startIsupListener } = require('./services/isupGateway');
+// Start the listener on the standard Hikvision EHome / ISUP ports
+startIsupListener([7660, 6060, 7600]);
+
 // WebSocket upgrades for RTSP streams
 const wssProxy = new WebSocket.Server({ noServer: true });
 
