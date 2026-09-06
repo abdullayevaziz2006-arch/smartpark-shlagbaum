@@ -1,7 +1,6 @@
 const jwt = require('jsonwebtoken');
-const crypto = require('crypto');
 
-const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(32).toString('hex');
+const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-smartpark-key';
 
 function authenticateToken(req, res, next) {
   const authHeader = req.headers['authorization'];

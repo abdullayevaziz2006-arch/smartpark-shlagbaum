@@ -16,7 +16,7 @@ async function getCashiers(req, res) {
     });
     res.json(cashiers);
   } catch (e) {
-    return res.status(500).json({ error: e.message });
+    res.status(500).json({ error: e.message });
   }
 }
 
@@ -38,7 +38,7 @@ async function createCashier(req, res) {
     });
     res.json({ success: true, cashier: { id: cashier.id, name: cashier.name, username: cashier.username } });
   } catch (e) {
-    return res.status(500).json({ error: e.message });
+    res.status(500).json({ error: e.message });
   }
 }
 
@@ -47,7 +47,7 @@ async function deleteCashier(req, res) {
     await prisma.user.delete({ where: { id: req.params.id, parkingLotId: req.user.parkingLotId } });
     res.json({ success: true });
   } catch (e) {
-    return res.status(500).json({ error: e.message });
+    res.status(500).json({ error: e.message });
   }
 }
 
@@ -62,7 +62,7 @@ async function updateParkingLot(req, res) {
     });
     res.json({ success: true, lot });
   } catch (e) {
-    return res.status(500).json({ error: e.message });
+    res.status(500).json({ error: e.message });
   }
 }
 
@@ -92,7 +92,7 @@ async function getDashboardStats(req, res) {
       cashiersCount
     });
   } catch (e) {
-    return res.status(500).json({ error: e.message });
+    res.status(500).json({ error: e.message });
   }
 }
 
@@ -113,7 +113,7 @@ async function getTariff(req, res) {
     }
     res.json(tariff);
   } catch (e) {
-    return res.status(500).json({ error: e.message });
+    res.status(500).json({ error: e.message });
   }
 }
 
@@ -137,7 +137,7 @@ async function saveTariff(req, res) {
     }
     res.json(tariff);
   } catch (e) {
-    return res.status(500).json({ error: e.message });
+    res.status(500).json({ error: e.message });
   }
 }
 
@@ -148,7 +148,7 @@ async function getDevices(req, res) {
     const devices = await prisma.device.findMany();
     res.json(devices);
   } catch (e) {
-    return res.status(500).json({ error: e.message });
+    res.status(500).json({ error: e.message });
   }
 }
 
@@ -174,7 +174,7 @@ async function createDevice(req, res) {
     });
     res.json(newDevice);
   } catch (e) {
-    return res.status(500).json({ error: e.message });
+    res.status(500).json({ error: e.message });
   }
 }
 
@@ -187,7 +187,7 @@ async function deleteDevice(req, res) {
     await prisma.device.delete({ where: { id: req.params.id } });
     res.json({ success: true });
   } catch (err) {
-    return res.status(500).json({ error: 'Failed to delete device' });
+    res.status(500).json({ error: 'Failed to delete device' });
   }
 }
 
@@ -213,7 +213,7 @@ async function pingDevice(req, res) {
       res.json({ status: 'OFFLINE' });
     }
   } catch (err) {
-    return res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: 'Server error' });
   }
 }
 
@@ -313,7 +313,7 @@ async function syncDevice(req, res) {
     res.json({ success: true, syncedCount: addedCount });
   } catch (err) {
     console.error('Sync error:', err);
-    return res.status(500).json({ error: 'Failed to sync with device' });
+    res.status(500).json({ error: 'Failed to sync with device' });
   }
 }
 

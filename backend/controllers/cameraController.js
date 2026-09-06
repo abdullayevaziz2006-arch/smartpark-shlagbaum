@@ -19,15 +19,8 @@ async function handleCameraWebhook(req, res) {
     };
     
     try {
-      let stats = fs.existsSync(debugPath) ? fs.statSync(debugPath) : null;
-      if (stats && stats.size > 5 * 1024 * 1024) { // > 5MB
-        fs.writeFileSync(debugPath, JSON.stringify(logData, null, 2) + '\n\n');
-      } else {
-        fs.appendFileSync(debugPath, JSON.stringify(logData, null, 2) + '\n\n');
-      }
-    } catch (err) {
-      console.error('Log write error:', err.message);
-    }
+      fs.appendFileSync(debugPath, JSON.stringify(logData, null, 2) + '\n\n');
+    } catch (err) {}
 
     let plateNumber = null;
     let direction = 'IN'; 
@@ -45,6 +38,9 @@ async function handleCameraWebhook(req, res) {
            try {
              const xmlData = fs.readFileSync(file.path, 'utf8');
              const parsed = parser.parse(xmlData);
+             try {
+               fs.appendFileSync(debugPath, 'PARSED XML: ' + JSON.stringify(parsed, null, 2) + '\n\n');
+             } catch (err) {}
              
              if (parsed.EventNotificationAlert && parsed.EventNotificationAlert.ANPR) {
                plateNumber = parsed.EventNotificationAlert.ANPR.licensePlate;
@@ -67,10 +63,11 @@ async function handleCameraWebhook(req, res) {
       return res.status(400).send('Plate number missing or unsupported format');
     }
 
-    let car = await prisma.car.findFirst({ where: { plateNumber } });
-    if (!car) {
-      car = await prisma.car.create({ data: { plateNumber } });
-    }
+    const car = await prisma.car.upsert({
+      where: { plateNumber },
+      update: {},
+      create: { plateNumber }
+    });
 
     if (car.isBlacklisted) {
       socketService.emit('alert', { message: `Qora ro'yxatdagi mashina: ${plateNumber}` });
@@ -170,10 +167,10 @@ async function handleCameraWebhook(req, res) {
       }
     }
     
-    return res.status(200).send('OK');
+    res.status(200).send('OK');
   } catch (error) {
     console.error(error);
-    return res.status(500).send('Server Error');
+    res.status(500).send('Server Error');
   }
 }
 
@@ -214,12 +211,12 @@ async function getCameraSnapshot(req, res) {
         'Content-Length': compressedBuffer.length,
         'Cache-Control': 'no-store, no-cache, must-revalidate, private'
       });
-      return res.end(compressedBuffer);
+      res.end(compressedBuffer);
     } else {
-      return res.status(response.status).send('Failed to get snapshot');
+      res.status(response.status).send('Failed to get snapshot');
     }
   } catch (err) {
-    return res.status(500).send(err.message);
+    res.status(500).send(err.message);
   }
 }
 
@@ -268,7 +265,7 @@ async function getCameraMjpegStream(req, res) {
       await new Promise(resolve => setTimeout(resolve, 400));
     }
   } catch (err) {
-    return res.status(500).end(err.message);
+    res.status(500).end(err.message);
   }
 }
 
@@ -309,10 +306,10 @@ async function triggerBarrierManual(req, res) {
         barrierService.triggerBarrierOpen(cfg.ips, cfg.username, cfg.password, model);
       }
     }
-    return res.json({ success: true, message: 'Shlagbaum ochildi!' });
+    res.json({ success: true, message: 'Shlagbaum ochildi!' });
   } catch (err) {
     console.error('[BARRIER] Error:', err.message);
-    return res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: err.message });
   }
 }
 

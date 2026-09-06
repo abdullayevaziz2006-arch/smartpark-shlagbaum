@@ -17,7 +17,7 @@ async function checkActivation(req, res) {
       parkingLotName: lot ? lot.name : null
     });
   } catch (e) {
-    return res.status(500).json({ error: e.message });
+    res.status(500).json({ error: e.message });
   }
 }
 
@@ -103,7 +103,7 @@ async function activate(req, res) {
     });
   } catch (e) {
     console.error('[Local Activate Error]:', e);
-    return res.status(500).json({ error: e.message });
+    res.status(500).json({ error: e.message });
   }
 }
 
@@ -130,7 +130,7 @@ async function register(req, res) {
     res.json({ success: true, message: 'Tadbirkor created successfully' });
   } catch(e) {
     console.error(e);
-    return res.status(500).json({ error: e.message });
+    res.status(500).json({ error: e.message });
   }
 }
 
@@ -171,7 +171,7 @@ async function login(req, res) {
     });
   } catch(e) {
     console.error(e);
-    return res.status(500).json({ error: e.message });
+    res.status(500).json({ error: e.message });
   }
 }
 
@@ -183,7 +183,7 @@ async function me(req, res) {
     });
     res.json(user);
   } catch (e) {
-    return res.status(500).json({ error: e.message });
+    res.status(500).json({ error: e.message });
   }
 }
 
