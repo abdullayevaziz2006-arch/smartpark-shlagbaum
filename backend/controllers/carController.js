@@ -8,7 +8,7 @@ async function getCars(req, res) {
     const cars = await prisma.car.findMany();
     res.json(cars);
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: e.message });
   }
 }
 
@@ -17,7 +17,7 @@ async function getSubscribers(req, res) {
     const subscribers = await prisma.car.findMany({ where: { isSubscriber: true } });
     res.json(subscribers);
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: e.message });
   }
 }
 
@@ -48,7 +48,7 @@ async function createSubscriber(req, res) {
     
     res.json(car);
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: e.message });
   }
 }
 
@@ -71,7 +71,7 @@ async function deleteSubscriber(req, res) {
     }
     res.json(car);
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: e.message });
   }
 }
 
@@ -93,7 +93,7 @@ async function syncSubscribersToDevices(req, res) {
     res.json({ success: true, results });
   } catch (err) {
     console.error('Manual sync error:', err);
-    res.status(500).json({ error: 'Sync failed' });
+    return res.status(500).json({ error: 'Sync failed' });
   }
 }
 
@@ -138,7 +138,7 @@ async function importSubscribers(req, res) {
     res.json({ success: true, importedCount });
   } catch (err) {
     console.error('Import error:', err);
-    res.status(500).json({ error: 'Failed to import file: ' + err.message });
+    return res.status(500).json({ error: 'Failed to import file: ' + err.message });
   }
 }
 
@@ -169,7 +169,7 @@ async function manualEntry(req, res) {
 
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to manual entry' });
+    return res.status(500).json({ error: 'Failed to manual entry' });
   }
 }
 

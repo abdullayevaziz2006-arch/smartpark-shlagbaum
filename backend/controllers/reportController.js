@@ -28,7 +28,7 @@ async function getRevenueReport(req, res) {
     
     res.json(data);
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: e.message });
   }
 }
 
@@ -59,7 +59,7 @@ async function getTrafficReport(req, res) {
     
     res.json(data);
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: e.message });
   }
 }
 
@@ -72,7 +72,7 @@ async function getHistoryReport(req, res) {
     });
     res.json(sessions);
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: e.message });
   }
 }
 
@@ -84,7 +84,7 @@ async function getSessions(req, res) {
     });
     res.json(sessions);
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: e.message });
   }
 }
 
@@ -93,7 +93,7 @@ async function getStats(req, res) {
     const activeCount = await prisma.parkingSession.count({ where: { status: 'ACTIVE' } });
     res.json({ activeCars: activeCount });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: e.message });
   }
 }
 
@@ -106,7 +106,7 @@ async function getLogs(req, res) {
     });
     res.json(logs);
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: e.message });
   }
 }
 

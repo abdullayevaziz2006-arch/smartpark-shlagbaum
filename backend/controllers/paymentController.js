@@ -28,7 +28,7 @@ async function processTerminalPayment(req, res) {
     
     res.json({ success: true, payment });
   } catch (err) {
-    res.status(500).json({ error: 'Terminal xatosi' });
+    return res.status(500).json({ error: 'Terminal xatosi' });
   }
 }
 
@@ -64,7 +64,7 @@ async function processCashPayment(req, res) {
     
     res.json({ success: true, payment, change });
   } catch (err) {
-    res.status(500).json({ error: 'Kassa xatosi' });
+    return res.status(500).json({ error: 'Kassa xatosi' });
   }
 }
 
@@ -89,7 +89,7 @@ async function processGeneralPayment(req, res) {
     
     res.json({ success: true, payment });
   } catch (err) {
-    res.status(500).json({ error: 'Payment failed' });
+    return res.status(500).json({ error: 'Payment failed' });
   }
 }
 
